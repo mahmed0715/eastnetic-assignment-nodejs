@@ -215,6 +215,20 @@ const cheerio = require('cheerio');
     }
   }
 
+/***
+ * Retry functionality
+ */
+  async function retry(promiseFactory, retryCount) {
+    try {
+      return await promiseFactory();
+    } catch (error) {
+      if (retryCount <= 0) {
+        throw error;
+      }
+      return await retry(promiseFactory, retryCount - 1);
+    }
+  }
+
   /***
    * launch browser instance and load the url, parse the content in cheerio object and return
    * @param {*} url 
@@ -240,8 +254,15 @@ const cheerio = require('cheerio');
 
       const page = await browser.newPage();
       page.setDefaultNavigationTimeout(0);
-      await page.goto(url);
 
+      // use retry mechanism to go to the url provided
+      await retry(
+        () => Promise.all([
+          page.goto(url),
+          page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+        ]),
+        3 // retry 3 times
+      );
 
       const html = await page.content();
 
